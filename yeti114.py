@@ -208,8 +208,8 @@ class TextProcessor:
 
         gpt2_model_dir: str = 'gpt2',
         model_name: str = None,
-        input_sequence_length: int = 50,
-        output_sequence_length: int = 50,
+        input_sequence_length: int = 100,
+        output_sequence_length: int = 100,
         batch_size: int = 32,
         lowercase: bool = False,
         handle_numbers: bool = True,
