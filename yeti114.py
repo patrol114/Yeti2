@@ -270,7 +270,7 @@ class TextProcessor:
         if not texts:
             raise ValueError("Lista tekstów jest pusta lub None.")
 
-        self.tokenizer = AutoTokenizer.from_pretrained("openai-community/gpt2", use_auth_token='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')
+        self.tokenizer = AutoTokenizer.from_pretrained("openai-community/gpt2-xl", use_auth_token='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')
         self.tokenizer.add_special_tokens({'pad_token': '[PAD]'})
 
         # Przetwarzanie większej liczby tekstów dla lepszej weryfikacji
@@ -517,8 +517,8 @@ class TextProcessor:
         embedding_matrix = self.create_embedding_matrix(vocab_size)
 
         # Generowanie sekwencji
-        #sequences = self.generate_sequences(processed_texts, input_sequence_length)
-        sequences = self.adjust_sequence_lengths(self.processed_texts, input_sequence_length, output_sequence_length)
+        sequences = self.generate_sequences(processed_texts, input_sequence_length)
+        #sequences = self.adjust_sequence_lengths(self.processed_texts, input_sequence_length, output_sequence_length)
 
         # Tworzenie danych treningowych i walidacyjnych
         X, y = self.create_X_y(sequences, input_sequence_length)
@@ -545,15 +545,34 @@ class TextProcessor:
         external_question_data, external_answer_data = self.natural_questions_open()
         return external_question_data + external_answer_data
 
-    def create_embedding_matrix(self, vocab_size):
-        # Tworzenie macierzy embeddingów
-        embedding_dim = 100
+    def create_embedding_matrix(self, vocab_size, embedding_dim=100):
+        # Inicjalizacja macierzy embeddingów zerami
         embedding_matrix = np.zeros((vocab_size, embedding_dim))
+        missed_embeddings = 0  # Licznik słów bez dostępnego wektora embeddingu
+
         for word, idx in self.tokenizer.get_vocab().items():
             embedding_vector = self.glove_model.get(word)
-            if embedding_vector is not None and idx < vocab_size:
+
+            if embedding_vector is not None:
                 embedding_matrix[idx] = embedding_vector
+            else:
+                missed_embeddings += 1
+                # Próba wygenerowania wektora za pomocą modelu FastText
+                try:
+                    embedding_vector = fasttext_model[word]
+                    if embedding_vector is not None:
+                        embedding_matrix[idx] = embedding_vector
+                    else:
+                        # Logika awaryjna: Użycie średniej wszystkich wektorów jako wektora zastępczego
+                        embedding_matrix[idx] = np.mean(list(self.glove_model.values()), axis=0)
+                except KeyError:
+                    # Jeśli słowo nie występuje w modelu FastText, używamy średniej wektorów
+                    embedding_matrix[idx] = np.mean(list(self.glove_model.values()), axis=0)
+
+        print(f"Liczba słów bez dostępnego wektora embeddingu, dla których próbowano użyć FastText: {missed_embeddings}")
+
         return embedding_matrix
+
 
     def generate_sequences(self, processed_texts, input_sequence_length):
         sequences = []
