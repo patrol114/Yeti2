@@ -517,7 +517,8 @@ class TextProcessor:
         embedding_matrix = self.create_embedding_matrix(vocab_size)
 
         # Generowanie sekwencji
-        sequences = self.generate_sequences(processed_texts, input_sequence_length)
+        #sequences = self.generate_sequences(processed_texts, input_sequence_length)
+        sequences = self.adjust_sequence_lengths(self.processed_texts, input_sequence_length, output_sequence_length)
 
         # Tworzenie danych treningowych i walidacyjnych
         X, y = self.create_X_y(sequences, input_sequence_length)
@@ -1074,8 +1075,8 @@ def main():
             glove_file = None,
             stop_words = set(stopwords.words("english"))
             model_name = input("Podaj nazwę modelu: ")
-            input_sequence_length = 50  # Określ i przypisz wartość tutaj
-            output_sequence_length = 50  # Określ i przypisz wartość tutaj
+            input_sequence_length = 100  # Określ i przypisz wartość tutaj
+            output_sequence_length = 100  # Określ i przypisz wartość tutaj
             batch_size = 32
             num_difficult_sequences = 50  # Zastąp odpowiednią wartością
             X_train = None
