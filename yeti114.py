@@ -550,6 +550,10 @@ class TextProcessor:
         embedding_matrix = np.zeros((vocab_size, embedding_dim))
         missed_embeddings = 0  # Licznik słów bez dostępnego wektora embeddingu
 
+        # Obliczenie średniego wektora embeddingu dla modelu GloVe
+        all_embeddings = np.stack(list(self.glove_model.values()))
+        mean_embedding = np.mean(all_embeddings, axis=0)
+
         for word, idx in self.tokenizer.get_vocab().items():
             embedding_vector = self.glove_model.get(word)
 
@@ -557,21 +561,13 @@ class TextProcessor:
                 embedding_matrix[idx] = embedding_vector
             else:
                 missed_embeddings += 1
-                # Próba wygenerowania wektora za pomocą modelu FastText
-                try:
-                    embedding_vector = fasttext_model[word]
-                    if embedding_vector is not None:
-                        embedding_matrix[idx] = embedding_vector
-                    else:
-                        # Logika awaryjna: Użycie średniej wszystkich wektorów jako wektora zastępczego
-                        embedding_matrix[idx] = np.mean(list(self.glove_model.values()), axis=0)
-                except KeyError:
-                    # Jeśli słowo nie występuje w modelu FastText, używamy średniej wektorów
-                    embedding_matrix[idx] = np.mean(list(self.glove_model.values()), axis=0)
+                # Użycie średniej wszystkich wektorów jako wektora zastępczego dla brakujących słów
+                embedding_matrix[idx] = mean_embedding
 
-        print(f"Liczba słów bez dostępnego wektora embeddingu, dla których próbowano użyć FastText: {missed_embeddings}")
+        print(f"Liczba słów bez dostępnego wektora embeddingu: {missed_embeddings}")
 
         return embedding_matrix
+
 
 
     def generate_sequences(self, processed_texts, input_sequence_length):
