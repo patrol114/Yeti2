@@ -270,7 +270,7 @@ class TextProcessor:
         if not texts:
             raise ValueError("Lista tekstów jest pusta lub None.")
 
-        self.tokenizer = AutoTokenizer.from_pretrained("openai-community/gpt2-xl", use_auth_token='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')
+        self.tokenizer = AutoTokenizer.from_pretrained("openai-community/gpt2", use_auth_token='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')
         self.tokenizer.add_special_tokens({'pad_token': '[PAD]'})
 
         # Przetwarzanie większej liczby tekstów dla lepszej weryfikacji
