@@ -529,11 +529,8 @@ class TextProcessor:
         vocab_size = max(self.tokenizer.get_vocab().values()) + 1
         embedding_matrix = self.create_embedding_matrix(vocab_size)
 
-        # Dynamiczne ustalanie rozmiaru batcha
-        average_record_size_bytes = 1024  # Dostosuj do swoich danych
-        num_features = input_sequence_length
-        num_classes = vocab_size
-        batch_size = self.choose_batch_size(average_record_size_bytes, num_features, num_classes)
+        # Tutaj wywołujemy funkcję do dynamicznego ustalenia rozmiaru batcha
+        batch_size = self.choose_batch_size()  # Zakładamy, że metoda choose_batch_size jest zdefiniowana
 
         # Generowanie sekwencji i tworzenie danych treningowych i walidacyjnych
         sequences = self.generate_sequences(processed_texts, input_sequence_length)
