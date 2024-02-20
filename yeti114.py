@@ -548,8 +548,6 @@ class TextProcessor:
 
         return (train_dataset, val_dataset, embedding_matrix, vocab_size, input_sequence_length, output_sequence_length, batch_size)
 
-    # Dodatkowe metody używane przez `create_sequences`:
-
     def get_external_data(self):
         # Pobieranie danych z 'natural_questions_open' i innych źródeł
         external_question_data, external_answer_data = self.natural_questions_open()
@@ -731,6 +729,7 @@ class TextProcessor:
             y_val=y_val,
             num_difficult_sequences=num_difficult_sequences,
         )
+
 
         print("Wczytywanie danych pytań i odpowiedzi...")
         question_data, answer_data = self.natural_questions_open()
@@ -1097,12 +1096,11 @@ def main():
         print("5. Zakończ")
         choice = input("Podaj swój wybór (1-5): ")
         if choice == "1":
-            glove_file = None,
+            glove_file = None
             stop_words = set(stopwords.words("english"))
             model_name = input("Podaj nazwę modelu: ")
             input_sequence_length = 100  # Określ i przypisz wartość tutaj
             output_sequence_length = 100  # Określ i przypisz wartość tutaj
-            batch_size = 32
             num_difficult_sequences = 50  # Zastąp odpowiednią wartością
             X_train = None
             X_val = None
@@ -1116,7 +1114,6 @@ def main():
                 model_name=model_name,
                 input_sequence_length=input_sequence_length,
                 output_sequence_length=output_sequence_length,
-                batch_size=batch_size,
                 lowercase=False,
                 handle_numbers=True,
                 handle_special_characters=False,
@@ -1145,7 +1142,6 @@ def main():
                 lstm_units=processor.lstm_units,
                 dropout_rate=processor.dropout_rate,
                 epochs=processor.epochs,
-                batch_size=processor.batch_size,
                 model_name=processor.model_name,
                 stop_words=processor.stop_words,
                 learning_rate=processor.learning_rate,
