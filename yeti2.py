@@ -585,7 +585,8 @@ class TextProcessor:
         processed_texts.extend(external_texts)
 
         self.create_tokenizer(processed_texts)
-        vocab_size = len(self.tokenizer.word_index) + 1
+        vocab_size = len(self.tokenizer.get_vocab()) + 1
+
         embedding_matrix = self.create_embedding_matrix(vocab_size)
 
         batch_size = self.choose_batch_size(1024, input_sequence_length, vocab_size)
