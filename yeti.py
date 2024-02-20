@@ -47,7 +47,8 @@ from tensorflow.python.ops import summary_ops_v2
 from io import StringIO
 from tensorflow.keras.optimizers import Adam
 import ast
-import tensorflow_datasets as tfds
+#import tensorflow_datasets as tfds
+from datasets import load_dataset
 from transformers import AutoTokenizer, TFGPT2Model, GPT2Tokenizer, AutoModel
 import requests
 import zipfile
@@ -419,37 +420,33 @@ class TextProcessor:
 
 
     def natural_questions_open(self):
-        dataset_name = "natural_questions_open"
-        print(f"Loading {dataset_name} dataset...")
+        dataset_name = "maximedb/natural_questions"
+        print(f"Loading {dataset_name} dataset from Hugging Face...")
 
         try:
-            nq_open_data, nq_open_info = tfds.load(dataset_name, with_info=True)
-            print("Dataset loaded.")
+            dataset = load_dataset(dataset_name, split='train')
+            print("Dataset loaded from Hugging Face.")
         except Exception as e:
-            print(f"Error loading dataset {dataset_name}: {e}")
+            print(f"Error loading dataset {dataset_name} from Hugging Face: {e}")
             return None, None
 
-        train_data = nq_open_data["train"]
-
-        def preprocess_fn(example):
-            # Używaj tf.py_function do przetwarzania tekstów z Tensor na string
-            processed_question = tf.py_function(func=self.preprocess_text, inp=[example["question"]], Tout=tf.string)
-            processed_answer = tf.py_function(func=self.preprocess_text, inp=[example["answer"]], Tout=tf.string)
-            return processed_question, processed_answer
-
-        processed_data = train_data.map(preprocess_fn)
-
         question_data, answer_data = [], []
-        for q, a in processed_data.as_numpy_iterator():
-            question_data.append(q.decode('utf-8'))
-            answer_data.append(a.decode('utf-8'))
+        for example in dataset:
+            question = example['question']['text'] if 'question' in example and 'text' in example['question'] else ''
+            answer = example['annotations'][0]['short_answers'][0]['text'] if 'annotations' in example and example['annotations'][0]['short_answers'] else ''
+
+            if question and answer:
+                processed_question = self.preprocess_text(question)
+                processed_answer = self.preprocess_text(answer)
+                question_data.append(processed_question)
+                answer_data.append(processed_answer)
 
         print("Converting data to lists...")
         unique_data = set(zip(question_data, answer_data))
-        unique_question_data, unique_answer_data = zip(*unique_data)
+        unique_question_data, unique_answer_data = zip(*unique_data) if unique_data else ([], [])
         print("Unique data generated.")
 
-        print(f"Liczba wczytanych pytań: {len(question_data)}, liczba wczytanych odpowiedzi: {len(answer_data)}")
+        print(f"Number of loaded questions: {len(unique_question_data)}, number of loaded answers: {len(unique_answer_data)}")
         return unique_question_data, unique_answer_data
 
     def generate_difficult_sequences(self, num_difficult_sequences: int, output_sequence_length: int) -> List[List[int]]:
