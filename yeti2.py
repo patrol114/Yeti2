@@ -371,119 +371,6 @@ class TextProcessor:
                     print(f"{filename} already exists. Skipping download.")
 
 
-    def preprocess_text(self, text_input):
-        # Sprawdzenie, czy wejście jest typu tf.Tensor i konwersja na numpy.ndarray
-        if isinstance(text_input, tf.Tensor):
-            text_input = text_input.numpy()
-
-        # Sprawdzenie, czy wejście jest typu numpy.ndarray
-        if isinstance(text_input, np.ndarray):
-            # Jeśli ndarray zawiera typ danych bajtowych, dekodujemy do UTF-8
-            if text_input.dtype.type is np.bytes_:
-                text = text_input.tobytes().decode('utf-8')
-            else:
-                # W przeciwnym razie zakładamy, że zawiera już dane tekstowe
-                text = str(text_input)
-        elif isinstance(text_input, bytes):
-            # Dekodowanie danych bajtowych do UTF-8
-            text = text_input.decode('utf-8')
-        else:
-            # Zakładamy, że wejście jest już typu str
-            text = text_input
-
-        # Tokenizacja tekstu
-        processed_text = ' '.join(word_tokenize(text))
-        return processed_text
-
-    def PrepareTextData(self, text_data, tokenizer, sequence_length):
-        # Upewnienie się, że text_data nie jest pusty
-        if text_data.size == 0:
-            raise ValueError("Tekst wejściowy jest pusty lub None")
-
-        sequences = []
-        # Przetwarzanie danych tekstowych partiami, aby zmniejszyć zużycie pamięci
-        for i in range(0, len(text_data), 100):  # Przetwarzanie w partiach po 100 elementów
-            batch = text_data[i:i+100]
-            # Upewnienie się, że batch jest listą łańcuchów znaków
-            if isinstance(batch[0], np.ndarray):
-                # Jeśli batch jest tablicą NumPy, konwertuj każdy element na str
-                batch = [str(x) for x in batch]
-            elif not isinstance(batch, list):
-                # Jeśli batch nie jest listą, konwertuj na listę
-                batch = [batch]
-
-            batch_sequences = tokenizer(batch, padding='max_length', truncation=True, max_length=sequence_length, return_tensors="np")
-            sequences.extend(batch_sequences['input_ids'])
-
-        return sequences
-
-
-    def natural_questions_open(self):
-        dataset_name = "imdb_reviews"
-        print(f"Loading {dataset_name} dataset...")
-
-        try:
-            nq_open_data, nq_open_info = tfds.load(dataset_name, with_info=True)
-            print("Dataset loaded.")
-        except Exception as e:
-            print(f"Error loading dataset {dataset_name}: {e}")
-            return None, None
-
-        train_data = nq_open_data["train"]
-
-        def preprocess_fn(example):
-            # Używaj tf.py_function do przetwarzania tekstów z Tensor na string
-            processed_question = tf.py_function(func=self.preprocess_text, inp=[example["text"]], Tout=tf.string)
-            return processed_question, processed_question
-
-        processed_data = train_data.map(preprocess_fn)
-
-        question_data, answer_data = [], []
-        for q, a in processed_data.as_numpy_iterator():
-            question_data.append(q.decode('utf-8'))
-            answer_data.append(a.decode('utf-8'))
-
-        print("Converting data to lists...")
-        unique_data = set(zip(question_data, answer_data))
-        unique_question_data, unique_answer_data = zip(*unique_data)
-        print("Unique data generated.")
-
-        print(f"Liczba wczytanych pytań: {len(question_data)}, liczba wczytanych odpowiedzi: {len(answer_data)}")
-        return unique_question_data, unique_answer_data
-
-        dataset_name = "natural_questions_open"
-        print(f"Loading {dataset_name} dataset...")
-
-        try:
-            nq_open_data, nq_open_info = tfds.load(dataset_name, with_info=True)
-            print("Dataset loaded.")
-        except Exception as e:
-            print(f"Error loading dataset {dataset_name}: {e}")
-            return None, None
-
-        train_data = nq_open_data["train"]
-
-        def preprocess_fn(example):
-            # Używaj tf.py_function do przetwarzania tekstów z Tensor na string
-            processed_question = tf.py_function(func=self.preprocess_text, inp=[example["question"]], Tout=tf.string)
-            processed_answer = tf.py_function(func=self.preprocess_text, inp=[example["answer"]], Tout=tf.string)
-            return processed_question, processed_answer
-
-        processed_data = train_data.map(preprocess_fn)
-
-        question_data, answer_data = [], []
-        for q, a in processed_data.as_numpy_iterator():
-            question_data.append(q.decode('utf-8'))
-            answer_data.append(a.decode('utf-8'))
-
-        print("Converting data to lists...")
-        unique_data = set(zip(question_data, answer_data))
-        unique_question_data, unique_answer_data = zip(*unique_data)
-        print("Unique data generated.")
-
-        print(f"Liczba wczytanych pytań: {len(question_data)}, liczba wczytanych odpowiedzi: {len(answer_data)}")
-        return unique_question_data, unique_answer_data
-
     def generate_difficult_sequences(self, num_difficult_sequences: int, output_sequence_length: int) -> List[List[int]]:
         difficult_sequences = []
 
@@ -536,82 +423,79 @@ class TextProcessor:
         max_batch_size = 2048
         return max(min_batch_size, min(chosen_batch_size, max_batch_size))
 
+    def PrepareTextData(self, text_data, tokenizer, sequence_length):
+        # Upewnienie się, że text_data nie jest pusty
+        if text_data.size == 0:
+            raise ValueError("Tekst wejściowy jest pusty lub None")
 
-    def create_sequences(
-        self,
-        input_sequence_length: int,
-        output_sequence_length: int,
-        glove_file: str,
-        directory: str,
-        stop_words: Set[str],
-        file_formats: Optional[List[str]] = ['.txt'],
-        X_train: Optional[np.ndarray] = None,
-        X_val: Optional[np.ndarray] = None,
-        y_train: Optional[np.ndarray] = None,
-        y_val: Optional[np.ndarray] = None,
-        num_difficult_sequences: int = 50,
-    ):
-        # Ładowanie wewnętrznych danych tekstowych i zewnętrznych zestawów danych
-        processed_texts, word_counts = self._load_and_preprocess_files(directory, file_formats)
-        external_texts = self.get_external_data()
-        processed_texts.extend(external_texts)
+        sequences = []
+        # Przetwarzanie danych tekstowych partiami, aby zmniejszyć zużycie pamięci
+        for i in range(0, len(text_data), 100):  # Przetwarzanie w partiach po 100 elementów
+            batch = text_data[i:i+100]
+            # Upewnienie się, że batch jest listą łańcuchów znaków
+            if isinstance(batch[0], np.ndarray):
+                # Jeśli batch jest tablicą NumPy, konwertuj każdy element na str
+                batch = [str(x) for x in batch]
+            elif not isinstance(batch, list):
+                # Jeśli batch nie jest listą, konwertuj na listę
+                batch = [batch]
 
-        # Tworzenie tokenizatora i generowanie sekwencji
-        self.create_tokenizer(processed_texts)
-        vocab_size = max(self.tokenizer.get_vocab().values()) + 1
-        embedding_matrix = self.create_embedding_matrix(vocab_size)
+            batch_sequences = tokenizer(batch, padding='max_length', truncation=True, max_length=sequence_length, return_tensors="np")
+            sequences.extend(batch_sequences['input_ids'])
 
-        # Tutaj wywołujemy funkcję do dynamicznego ustalenia rozmiaru batcha
-        # Załóżmy, że średni rozmiar rekordu to 1024 bajty, liczba cech to długość sekwencji wejściowej,
-        # a liczba klas to rozmiar słownika
-        average_record_size_bytes = 1024
-        num_features = input_sequence_length
-        num_classes = vocab_size
-        batch_size = self.choose_batch_size(average_record_size_bytes, num_features, num_classes)
+        return sequences
 
-        # Generowanie sekwencji i tworzenie danych treningowych i walidacyjnych
-        sequences = self.generate_sequences(processed_texts, input_sequence_length)
-        X, y = self.create_X_y(list(sequences), input_sequence_length)
-        X_train, X_val, y_train, y_val = self.split_data(X, y, X_train, X_val, y_train, y_val)
+    def natural_questions_open(self):
+        dataset_name = "natural_questions_open"
+        print(f"Loading {dataset_name} dataset...")
 
-        # Przygotowanie danych
-        train_input_sequences, val_input_sequences, train_target_sequences, val_target_sequences = self.prepare_data(X_train, X_val, y_train, y_val, input_sequence_length, output_sequence_length)
+        try:
+            nq_open_data, nq_open_info = tfds.load(dataset_name, with_info=True, as_supervised=True)
+            print("Dataset loaded.")
+        except Exception as e:
+            print(f"Error loading dataset {dataset_name}: {e}")
+            return None, None
 
-        # Tworzenie zbiorów danych
-        train_dataset, val_dataset = self.create_datasets(train_input_sequences, val_input_sequences, train_target_sequences, val_target_sequences, batch_size)
+        def preprocess_fn(example):
+            processed_question = tf.py_function(func=self.preprocess_text, inp=[example[0]], Tout=tf.string)
+            processed_answer = tf.py_function(func=self.preprocess_text, inp=[example[1]], Tout=tf.string)
+            return processed_question, processed_answer
 
-        # Debugowanie i inne operacje
-        self.debug_generated_sentences(val_dataset, self.model)
+        processed_data = nq_open_data["train"].map(preprocess_fn, num_parallel_calls=tf.data.AUTOTUNE)
 
-        return (train_dataset, val_dataset, embedding_matrix, vocab_size, input_sequence_length, output_sequence_length, batch_size)
+        unique_data = set()
+        for q, a in processed_data.as_numpy_iterator():
+            q_str = q.decode('utf-8')
+            a_str = a.decode('utf-8')
+            if (q_str, a_str) not in unique_data:
+                unique_data.add((q_str, a_str))
+                yield q_str, a_str
 
-    def get_external_data(self):
-        # Pobieranie danych z 'natural_questions_open' i innych źródeł
-        external_question_data, external_answer_data = self.natural_questions_open()
-        return external_question_data + external_answer_data
+        print("Unique data generated.")
 
-    def create_embedding_matrix(self, vocab_size, embedding_dim=100):
-        # Inicjalizacja macierzy embeddingów zerami
-        embedding_matrix = np.zeros((vocab_size, embedding_dim))
-        missed_embeddings = 0  # Licznik słów bez dostępnego wektora embeddingu
+    def preprocess_text(self, text_input):
+        # Sprawdzenie, czy wejście jest typu tf.Tensor i konwersja na numpy.ndarray
+        if isinstance(text_input, tf.Tensor):
+            text_input = text_input.numpy()
 
-        # Obliczenie średniego wektora embeddingu dla modelu GloVe
-        all_embeddings = np.stack(list(self.glove_model.values()))
-        mean_embedding = np.mean(all_embeddings, axis=0)
-
-        for word, idx in self.tokenizer.get_vocab().items():
-            embedding_vector = self.glove_model.get(word)
-
-            if embedding_vector is not None:
-                embedding_matrix[idx] = embedding_vector
+        # Sprawdzenie, czy wejście jest typu numpy.ndarray
+        if isinstance(text_input, np.ndarray):
+            # Jeśli ndarray zawiera typ danych bajtowych, dekodujemy do UTF-8
+            if text_input.dtype.type is np.bytes_:
+                text = text_input.tobytes().decode('utf-8')
             else:
-                missed_embeddings += 1
-                # Użycie średniej wszystkich wektorów jako wektora zastępczego dla brakujących słów
-                embedding_matrix[idx] = mean_embedding
+                # W przeciwnym razie zakładamy, że zawiera już dane tekstowe
+                text = str(text_input)
+        elif isinstance(text_input, bytes):
+            # Dekodowanie danych bajtowych do UTF-8
+            text = text_input.decode('utf-8')
+        else:
+            # Zakładamy, że wejście jest już typu str
+            text = text_input
 
-        print(f"Liczba słów bez dostępnego wektora embeddingu: {missed_embeddings}")
-
-        return embedding_matrix
+        # Tokenizacja tekstu
+        processed_text = ' '.join(word_tokenize(text))
+        return processed_text
 
     def generate_sequences(self, processed_texts, input_sequence_length):
         for text in processed_texts:
@@ -628,8 +512,6 @@ class TextProcessor:
             except Exception as e:
                 print(f"Wystąpił błąd podczas generowania sekwencji dla tekstu: {text[:50]}... Błąd: {e}")
 
-
-    # W funkcji create_X_y
     def create_X_y(self, sequences_generator, input_sequence_length):
         X, y = [], []
         try:
@@ -657,44 +539,103 @@ class TextProcessor:
         return X_train, X_val, y_train, y_val
 
     def prepare_data(self, X_train, X_val, y_train, y_val, input_sequence_length, output_sequence_length):
-        # Tutaj przekształcamy X_train, X_val, y_train, y_val na generatory i wykorzystujemy je do tworzenia datasetów
         train_input_sequences = self.generate_sequences(X_train, input_sequence_length)
         val_input_sequences = self.generate_sequences(X_val, input_sequence_length)
         train_target_sequences = self.generate_sequences(y_train, output_sequence_length)
         val_target_sequences = self.generate_sequences(y_val, output_sequence_length)
 
-        # Następnie tworzymy zbiory danych z tych generatorów
+        batch_size = self.choose_batch_size(1024, input_sequence_length, len(self.tokenizer.word_index))
+
         train_dataset, val_dataset = self.create_datasets(train_input_sequences, val_input_sequences, train_target_sequences, val_target_sequences, batch_size)
 
         return train_dataset, val_dataset
 
     def create_datasets(self, train_input_sequences, val_input_sequences, train_target_sequences, val_target_sequences, batch_size):
-        # Tworzenie zbiorów danych TensorFlow
-        train_dataset = tf.data.Dataset.from_tensor_slices((train_input_sequences, train_target_sequences))
-        val_dataset = tf.data.Dataset.from_tensor_slices((val_input_sequences, val_target_sequences))
+        train_dataset = tf.data.Dataset.from_generator(
+            lambda: zip(train_input_sequences, train_target_sequences),
+            output_signature=(tf.TensorSpec(shape=(None,), dtype=tf.int32), tf.TensorSpec(shape=(None,), dtype=tf.int32))
+        )
+
+        val_dataset = tf.data.Dataset.from_generator(
+            lambda: zip(val_input_sequences, val_target_sequences),
+            output_signature=(tf.TensorSpec(shape=(None,), dtype=tf.int32), tf.TensorSpec(shape=(None,), dtype=tf.int32))
+        )
+
         train_dataset = train_dataset.shuffle(buffer_size=1024).batch(batch_size, drop_remainder=True).prefetch(tf.data.AUTOTUNE)
         val_dataset = val_dataset.shuffle(buffer_size=1024).batch(batch_size, drop_remainder=True).prefetch(tf.data.AUTOTUNE)
+
         return train_dataset, val_dataset
 
-    def debug_generated_sentences(self, dataset, model):
-        # Wypisywanie w konsoli wygenerowanych zdań dla debugowania
-        for input_sequence, _ in dataset.take(5):
-            prediction = model.predict(input_sequence.numpy())
-            generated_text = self.tokenizer.decode(prediction[0])
-            print(f"Wygenerowane zdanie: {generated_text}")
+    def create_sequences(
+        self,
+        input_sequence_length: int,
+        output_sequence_length: int,
+        glove_file: str,
+        directory: str,
+        stop_words: Set[str],
+        file_formats: Optional[List[str]] = ['.txt'],
+        X_train: Optional[np.ndarray] = None,
+        X_val: Optional[np.ndarray] = None,
+        y_train: Optional[np.ndarray] = None,
+        y_val: Optional[np.ndarray] = None,
+        num_difficult_sequences: int = 50,
+    ):
+        processed_texts, word_counts = self._load_and_preprocess_files(directory, file_formats)
+        external_texts = list(self.natural_questions_open())
+        processed_texts.extend(external_texts)
+
+        self.create_tokenizer(processed_texts)
+        vocab_size = len(self.tokenizer.word_index) + 1
+        embedding_matrix = self.create_embedding_matrix(vocab_size)
+
+        batch_size = self.choose_batch_size(1024, input_sequence_length, vocab_size)
+
+        sequences = self.generate_sequences(processed_texts, input_sequence_length)
+        X, y = self.create_X_y(sequences, input_sequence_length)
+        X_train, X_val, y_train, y_val = self.split_data(X, y, X_train, X_val, y_train, y_val)
+
+        train_dataset, val_dataset = self.prepare_data(X_train, X_val, y_train, y_val, input_sequence_length, output_sequence_length)
+
+        self.debug_generated_sentences(val_dataset, self.model)
+
+        return (train_dataset, val_dataset, embedding_matrix, vocab_size, input_sequence_length, output_sequence_length, batch_size)
+
+    def get_external_data(self):
+        external_question_data, external_answer_data = [], []
+        for q, a in self.natural_questions_open():
+            external_question_data.append(q)
+            external_answer_data.append(a)
+        return external_question_data + external_answer_data
+
+    def create_embedding_matrix(self, vocab_size, embedding_dim=100):
+        embedding_matrix = np.zeros((vocab_size, embedding_dim))
+        missed_embeddings = 0
+
+        all_embeddings = np.stack(list(self.glove_model.values()))
+        mean_embedding = np.mean(all_embeddings, axis=0)
+
+        for word, idx in self.tokenizer.word_index.items():
+            embedding_vector = self.glove_model.get(word)
+
+            if embedding_vector is not None:
+                embedding_matrix[idx] = embedding_vector
+            else:
+                missed_embeddings += 1
+                embedding_matrix[idx] = mean_embedding
+
+        print(f"Liczba słów bez dostępnego wektora embeddingu: {missed_embeddings}")
+
+        return embedding_matrix
 
     def _load_and_preprocess_files(self, directory, file_formats):
         processed_texts = []
         word_counts = {}
 
-        # Sprawdzenie, czy katalog istnieje
-        print(f"Sprawdzanie ścieżki katalogu: {directory}")
         if not os.path.isdir(directory):
             raise FileNotFoundError(f"Błąd: Podana ścieżka '{directory}' nie jest katalogiem.")
 
-        # Wczytanie plików z katalogu
         files = [f for f in os.listdir(directory) if os.path.isfile(os.path.join(directory, f)) and any(f.endswith(format) for format in file_formats)]
-        print(f"Znalezione pliki: {files}")
+
         if not files:
             raise FileNotFoundError("Brak plików w podanym formacie w katalogu.")
 
@@ -704,17 +645,16 @@ class TextProcessor:
                 lines = f.readlines()
                 if not lines:
                     print(f"Plik {file} jest pusty.")
-                    continue  # Pominięcie pustych plików
+                    continue
 
                 for line in lines:
                     processed_line = self.preprocess_text(line)
-                    processed_words = processed_line.split()  # Rozdzielanie tekstu na słowa
+                    processed_words = processed_line.split()
                     processed_texts.extend(processed_words)
                     word_count = len(processed_words)
                     word_counts[file] = word_counts.get(file, 0) + word_count
                 print(f"Przetworzono plik: {file}, liczba słów: {word_count}")
 
-        # Dodanie sprawdzenia, czy przetworzone teksty nie są puste
         if not processed_texts:
             raise ValueError("Brak przetworzonych tekstów. Proszę sprawdzić zawartość katalogu.")
         else:
