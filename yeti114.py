@@ -521,8 +521,8 @@ class TextProcessor:
     ):
         # Ładowanie wewnętrznych danych tekstowych i zewnętrznych zestawów danych
         processed_texts, word_counts = self._load_and_preprocess_files(directory, file_formats)
-        external_texts = self.get_external_data()
-        processed_texts.extend(external_texts)
+        #external_texts = self.get_external_data()
+        #processed_texts.extend(external_texts)
 
         # Tworzenie tokenizatora i generowanie sekwencji
         self.create_tokenizer(processed_texts)
