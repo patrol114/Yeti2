@@ -2,6 +2,7 @@ import os
 import pickle
 import re
 import nltk
+import psutil
 import numpy as np
 from nltk.tokenize import word_tokenize
 import tensorflow as tf
@@ -481,11 +482,33 @@ class TextProcessor:
 
         return difficult_sequences
 
+    def estimate_batch_size_per_record(self, record_size_bytes, num_features, num_classes):
+        """
+        Szacuje rozmiar jednego rekordu danych w batchu.
+        """
+        return np.ceil(record_size_bytes * (num_features + num_classes))
+
+    def choose_batch_size(self, average_record_size_bytes, num_features, num_classes):
+        available_memory = psutil.virtual_memory().available
+        cpu_count = psutil.cpu_count(logical=False)
+
+        estimated_size_per_record = self.estimate_batch_size_per_record(average_record_size_bytes, num_features, num_classes)
+
+        memory_based_batch_size = int(available_memory / (estimated_size_per_record * 1.5))
+
+        cpu_based_batch_size = cpu_count * 75
+
+        chosen_batch_size = min(memory_based_batch_size, cpu_based_batch_size)
+
+        min_batch_size = 32
+        max_batch_size = 2048
+        return max(min_batch_size, min(chosen_batch_size, max_batch_size))
+
+
     def create_sequences(
         self,
         input_sequence_length: int,
         output_sequence_length: int,
-        batch_size: int,
         glove_file: str,
         directory: str,
         stop_words: Set[str],
@@ -495,37 +518,27 @@ class TextProcessor:
         y_train: Optional[np.ndarray] = None,
         y_val: Optional[np.ndarray] = None,
         num_difficult_sequences: int = 50,
-    ) -> Tuple[tf.data.Dataset, tf.data.Dataset, np.ndarray, int, int, np.ndarray, List[str], Dict[str, int]]:
-        # Ładowanie wewnętrznych danych tekstowych
+    ):
+        # Ładowanie wewnętrznych danych tekstowych i zewnętrznych zestawów danych
         processed_texts, word_counts = self._load_and_preprocess_files(directory, file_formats)
-
-        # Ładowanie zewnętrznych zestawów danych
-        self._load_external_datasets()
         external_texts = self.get_external_data()
-
-        # Łączenie zewnętrznych danych z wewnętrznymi
         processed_texts.extend(external_texts)
 
         # Tworzenie tokenizatora i generowanie sekwencji
         self.create_tokenizer(processed_texts)
-
-        # Uzyskanie maksymalnego indeksu tokena
-        max_token_index = max(self.tokenizer.get_vocab().values())
-        vocab_size = max_token_index + 1
-
-        # Tworzenie macierzy embeddingów
+        vocab_size = max(self.tokenizer.get_vocab().values()) + 1
         embedding_matrix = self.create_embedding_matrix(vocab_size)
 
-        # Generowanie sekwencji
+        # Dynamiczne ustalanie rozmiaru batcha
+        average_record_size_bytes = 1024  # Dostosuj do swoich danych
+        num_features = input_sequence_length
+        num_classes = vocab_size
+        batch_size = self.choose_batch_size(average_record_size_bytes, num_features, num_classes)
+
+        # Generowanie sekwencji i tworzenie danych treningowych i walidacyjnych
         sequences = self.generate_sequences(processed_texts, input_sequence_length)
-        #sequences = self.adjust_sequence_lengths(self.processed_texts, input_sequence_length, output_sequence_length)
-
-        # Tworzenie danych treningowych i walidacyjnych
-        X, y = self.create_X_y(sequences, input_sequence_length)
-
-        # Dzielenie na zbiory treningowe i walidacyjne
-        if X_val is None or y_val is None:
-            X_train, X_val, y_train, y_val = self.split_data(X, y, X_train, X_val, y_train, y_val)
+        X, y = self.create_X_y(list(sequences), input_sequence_length)
+        X_train, X_val, y_train, y_val = self.split_data(X, y, X_train, X_val, y_train, y_val)
 
         # Przygotowanie danych
         train_input_sequences, val_input_sequences, train_target_sequences, val_target_sequences = self.prepare_data(X_train, X_val, y_train, y_val, input_sequence_length, output_sequence_length)
@@ -533,10 +546,10 @@ class TextProcessor:
         # Tworzenie zbiorów danych
         train_dataset, val_dataset = self.create_datasets(train_input_sequences, val_input_sequences, train_target_sequences, val_target_sequences, batch_size)
 
-        # Debugowanie wygenerowanych zdań
+        # Debugowanie i inne operacje
         self.debug_generated_sentences(val_dataset, self.model)
 
-        return (train_dataset, val_dataset, embedding_matrix, vocab_size, embedding_dim, difficult_sequences, processed_texts, word_counts)
+        return (train_dataset, val_dataset, embedding_matrix, vocab_size, input_sequence_length, output_sequence_length, batch_size)
 
     # Dodatkowe metody używane przez `create_sequences`:
 
