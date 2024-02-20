@@ -419,7 +419,7 @@ class TextProcessor:
 
 
     def natural_questions_open(self):
-        dataset_name = "natural_questions_open"
+        dataset_name = ""
         print(f"Loading {dataset_name} dataset...")
 
         try:
