@@ -323,7 +323,7 @@ class TextProcessor:
                         sys.stdout.flush()
 
     def load_glove_model(self):
-        glove_file = "glove.6B.300d.txt"
+        glove_file = "glove.6B.100d.txt"
         if not os.path.exists(glove_file):
             print(f"Plik {glove_file} nie został znaleziony. Rozpoczynam pobieranie...")
             try:
@@ -568,36 +568,34 @@ class TextProcessor:
 
         return embedding_matrix
 
-
-
     def generate_sequences(self, processed_texts, input_sequence_length):
-        sequences = []
         for text in processed_texts:
-            if isinstance(text, bytes):
-                text = text.decode('utf-8')
-            elif isinstance(text, tf.Tensor):
-                text = text.numpy().decode('utf-8')
+            try:
+                if isinstance(text, bytes):
+                    text = text.decode('utf-8')
+                elif isinstance(text, tf.Tensor):
+                    text = text.numpy().decode('utf-8')
 
-            encoded_text = self.tokenizer.encode(text, add_special_tokens=True)
-            if len(encoded_text) >= input_sequence_length:
-                sequences.append(encoded_text[:input_sequence_length])
-            else:
-                # Dodanie paddingu do krótszych sekwencji
-                sequences.append(encoded_text + [0] * (input_sequence_length - len(encoded_text)))
+                encoded_text = self.tokenizer.encode(text, add_special_tokens=True)
+                sequence = encoded_text[:input_sequence_length] if len(encoded_text) >= input_sequence_length else encoded_text + [0] * (input_sequence_length - len(encoded_text))
 
-        if not sequences:
-            raise ValueError("Nie udało się wygenerować żadnych sekwencji.")
-        return sequences
+                yield sequence
+            except Exception as e:
+                print(f"Wystąpił błąd podczas generowania sekwencji dla tekstu: {text[:50]}... Błąd: {e}")
+
 
     # W funkcji create_X_y
-    def create_X_y(self, sequences, input_sequence_length):
+    def create_X_y(self, sequences_generator, input_sequence_length):
         X, y = [], []
-        for seq in sequences:
-            for i in range(1, len(seq)):
-                X_seq = seq[max(0, i - input_sequence_length):i]
-                y_seq = seq[i]
-                X.append(X_seq + [0] * (input_sequence_length - len(X_seq)))  # Dodanie paddingu
-                y.append(y_seq)
+        try:
+            for sequence in sequences_generator:
+                for i in range(1, len(sequence)):
+                    X_seq = sequence[max(0, i - input_sequence_length):i]
+                    y_seq = sequence[i]
+                    X.append(X_seq + [0] * (input_sequence_length - len(X_seq)))
+                    y.append(y_seq)
+        except Exception as e:
+            print(f"Wystąpił błąd podczas tworzenia par X i y. Błąd: {e}")
 
         if not X or not y:
             raise ValueError("X lub y są puste. Brak danych do treningu.")
@@ -614,12 +612,16 @@ class TextProcessor:
         return X_train, X_val, y_train, y_val
 
     def prepare_data(self, X_train, X_val, y_train, y_val, input_sequence_length, output_sequence_length):
-        # Przygotowanie danych do treningu
-        train_input_sequences = self.PrepareTextData(X_train, self.tokenizer, input_sequence_length)
-        val_input_sequences = self.PrepareTextData(X_val, self.tokenizer, input_sequence_length)
-        train_target_sequences = self.PrepareTextData(y_train, self.tokenizer, output_sequence_length)
-        val_target_sequences = self.PrepareTextData(y_val, self.tokenizer, output_sequence_length)
-        return train_input_sequences, val_input_sequences, train_target_sequences, val_target_sequences
+        # Tutaj przekształcamy X_train, X_val, y_train, y_val na generatory i wykorzystujemy je do tworzenia datasetów
+        train_input_sequences = self.generate_sequences(X_train, input_sequence_length)
+        val_input_sequences = self.generate_sequences(X_val, input_sequence_length)
+        train_target_sequences = self.generate_sequences(y_train, output_sequence_length)
+        val_target_sequences = self.generate_sequences(y_val, output_sequence_length)
+
+        # Następnie tworzymy zbiory danych z tych generatorów
+        train_dataset, val_dataset = self.create_datasets(train_input_sequences, val_input_sequences, train_target_sequences, val_target_sequences, batch_size)
+
+        return train_dataset, val_dataset
 
     def create_datasets(self, train_input_sequences, val_input_sequences, train_target_sequences, val_target_sequences, batch_size):
         # Tworzenie zbiorów danych TensorFlow
