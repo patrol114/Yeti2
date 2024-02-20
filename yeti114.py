@@ -530,6 +530,11 @@ class TextProcessor:
         embedding_matrix = self.create_embedding_matrix(vocab_size)
 
         # Tutaj wywołujemy funkcję do dynamicznego ustalenia rozmiaru batcha
+        # Załóżmy, że średni rozmiar rekordu to 1024 bajty, liczba cech to długość sekwencji wejściowej,
+        # a liczba klas to rozmiar słownika
+        average_record_size_bytes = 1024
+        num_features = input_sequence_length
+        num_classes = vocab_size
         batch_size = self.choose_batch_size(average_record_size_bytes, num_features, num_classes)
 
         # Generowanie sekwencji i tworzenie danych treningowych i walidacyjnych
