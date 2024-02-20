@@ -530,7 +530,7 @@ class TextProcessor:
         embedding_matrix = self.create_embedding_matrix(vocab_size)
 
         # Tutaj wywołujemy funkcję do dynamicznego ustalenia rozmiaru batcha
-        batch_size = self.choose_batch_size()  # Zakładamy, że metoda choose_batch_size jest zdefiniowana
+        batch_size = self.choose_batch_size(average_record_size_bytes, num_features, num_classes)
 
         # Generowanie sekwencji i tworzenie danych treningowych i walidacyjnych
         sequences = self.generate_sequences(processed_texts, input_sequence_length)
