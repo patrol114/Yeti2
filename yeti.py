@@ -49,6 +49,8 @@ from tensorflow.keras.optimizers import Adam
 import ast
 #import tensorflow_datasets as tfds
 from datasets import load_dataset
+from huggingface_hub import snapshot_download
+from datasets import load_from_disk
 from transformers import AutoTokenizer, TFGPT2Model, GPT2Tokenizer, AutoModel
 import requests
 import zipfile
@@ -421,13 +423,16 @@ class TextProcessor:
 
     def natural_questions_open(self):
         dataset_name = "maximedb/natural_questions"
-        print(f"Loading {dataset_name} dataset from Hugging Face...")
+        local_dir = "./data/natural_questions"
+        print(f"Attempting to download {dataset_name} dataset from Hugging Face...")
 
         try:
-            dataset = load_dataset(dataset_name, split='train')
-            print("Dataset loaded from Hugging Face.")
+            # Pobieranie snapshotu datasetu
+            snapshot_download(repo_id=dataset_name, local_dir=local_dir)
+            dataset = load_from_disk(local_dir)['train']
+            print("Dataset successfully loaded from Hugging Face.")
         except Exception as e:
-            print(f"Error loading dataset {dataset_name} from Hugging Face: {e}")
+            print(f"Error during dataset download or loading: {e}")
             return None, None
 
         question_data, answer_data = [], []
