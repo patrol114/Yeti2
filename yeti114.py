@@ -419,7 +419,7 @@ class TextProcessor:
 
 
     def natural_questions_open(self):
-        dataset_name = "gpt3"
+        dataset_name = "imdb_reviews"
         print(f"Loading {dataset_name} dataset...")
 
         try:
